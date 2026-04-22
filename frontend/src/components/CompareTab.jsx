@@ -6,12 +6,12 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const DOC_COLORS = [
-  "#002FA7",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
+  "#4F46E5",
   "#06B6D4",
+  "#A855F7",
+  "#F59E0B",
+  "#10B981",
+  "#F43F5E",
   "#EC4899",
 ];
 
@@ -59,10 +59,10 @@ const CompareTab = ({ documents }) => {
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: "#A1A1AA",
+              color: "#8890B2",
               textTransform: "uppercase",
-              letterSpacing: "0.15em",
-              marginBottom: 6,
+              letterSpacing: "0.16em",
+              marginBottom: 8,
             }}
           >
             Select documents to compare
@@ -87,15 +87,16 @@ const CompareTab = ({ documents }) => {
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
-                      padding: "5px 10px",
+                      padding: "6px 12px",
                       fontSize: 12,
                       fontWeight: 500,
-                      borderRadius: 4,
-                      border: `1.5px solid ${isSelected ? getDocColor(doc.id) : "#E4E4E7"}`,
-                      background: isSelected ? `${getDocColor(doc.id)}12` : "#FFFFFF",
-                      color: isSelected ? getDocColor(doc.id) : "#52525B",
+                      borderRadius: 999,
+                      border: `1.5px solid ${isSelected ? getDocColor(doc.id) : "rgba(79, 70, 229, 0.15)"}`,
+                      background: isSelected ? `${getDocColor(doc.id)}18` : "rgba(255,255,255,0.75)",
+                      color: isSelected ? getDocColor(doc.id) : "#5B6384",
                       cursor: "pointer",
-                      transition: "all 0.15s ease",
+                      transition: "all 0.2s ease",
+                      backdropFilter: "blur(10px)",
                     }}
                   >
                     <FileText size={12} />
@@ -113,10 +114,10 @@ const CompareTab = ({ documents }) => {
               style={{
                 fontSize: 10,
                 fontWeight: 600,
-                color: "#A1A1AA",
+                color: "#8890B2",
                 textTransform: "uppercase",
-                letterSpacing: "0.15em",
-                marginBottom: 6,
+                letterSpacing: "0.16em",
+                marginBottom: 8,
               }}
             >
               Query
@@ -130,13 +131,15 @@ const CompareTab = ({ documents }) => {
               data-testid="compare-query-input"
               style={{
                 width: 340,
-                padding: "8px 12px",
+                padding: "9px 14px",
                 fontSize: 13,
-                border: "1px solid #D4D4D8",
-                borderRadius: 4,
+                border: "1px solid rgba(79, 70, 229, 0.2)",
+                borderRadius: 10,
                 outline: "none",
                 fontFamily: "'IBM Plex Sans', sans-serif",
-                color: "#09090B",
+                color: "#0B1020",
+                background: "rgba(255,255,255,0.8)",
+                backdropFilter: "blur(10px)",
               }}
             />
           </div>
@@ -148,19 +151,23 @@ const CompareTab = ({ documents }) => {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              padding: "8px 16px",
+              padding: "9px 18px",
               fontSize: 13,
               fontWeight: 600,
               color: "#FFFFFF",
-              backgroundColor:
+              background:
                 !query.trim() || selectedDocs.length < 1
-                  ? "#D4D4D8"
-                  : "#002FA7",
+                  ? "#C4C8DB"
+                  : "linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)",
               border: "none",
-              borderRadius: 4,
+              borderRadius: 10,
               cursor:
                 !query.trim() || selectedDocs.length < 1 ? "not-allowed" : "pointer",
-              transition: "background-color 0.15s ease",
+              transition: "transform 0.15s ease, box-shadow 0.2s ease",
+              boxShadow:
+                !query.trim() || selectedDocs.length < 1
+                  ? "none"
+                  : "0 6px 18px rgba(79, 70, 229, 0.3)",
             }}
           >
             {isLoading ? (
@@ -177,11 +184,11 @@ const CompareTab = ({ documents }) => {
       <div className="compare-results">
         {!results && !isLoading && (
           <div className="empty-state" data-testid="compare-empty-state">
-            <GitCompare size={36} style={{ color: "#D4D4D8" }} />
-            <div style={{ fontWeight: 600, fontSize: 15, color: "#52525B" }}>
+            <GitCompare size={40} style={{ color: "#C4C8DB" }} />
+            <div style={{ fontWeight: 700, fontSize: 17, color: "#2D3250", fontFamily: "'Cabinet Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
               Side-by-Side Document Comparison
             </div>
-            <p style={{ maxWidth: 400, lineHeight: 1.6, fontSize: 13 }}>
+            <p style={{ maxWidth: 440, lineHeight: 1.7, fontSize: 13.5, color: "#5B6384" }}>
               Select two or more documents above and enter a question to see
               how each document answers it. Great for comparing perspectives,
               dates, or facts across sources.
@@ -192,11 +199,11 @@ const CompareTab = ({ documents }) => {
         {isLoading && (
           <div className="empty-state" data-testid="compare-loading">
             <Loader2
-              size={30}
+              size={32}
               className="animate-spin"
-              style={{ color: "#002FA7" }}
+              style={{ color: "#4F46E5" }}
             />
-            <p style={{ fontSize: 14, color: "#71717A" }}>
+            <p style={{ fontSize: 14, color: "#5B6384" }}>
               Retrieving and generating answers per document...
             </p>
           </div>

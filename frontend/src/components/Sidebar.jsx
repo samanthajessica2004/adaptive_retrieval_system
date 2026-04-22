@@ -72,15 +72,15 @@ const Sidebar = ({
 
   const getDocColor = (fileType) => {
     const colors = {
-      pdf: "#EF4444",
-      docx: "#2563EB",
-      doc: "#2563EB",
-      txt: "#71717A",
+      pdf: "#F43F5E",
+      docx: "#4F46E5",
+      doc: "#4F46E5",
+      txt: "#5B6384",
       md: "#10B981",
       csv: "#F59E0B",
-      url: "#8B5CF6",
+      url: "#A855F7",
     };
-    return colors[fileType?.toLowerCase()] || "#71717A";
+    return colors[fileType?.toLowerCase()] || "#5B6384";
   };
 
   return (
@@ -116,13 +116,13 @@ const Sidebar = ({
             <Loader2
               size={22}
               className="animate-spin"
-              style={{ color: "#002FA7", margin: "0 auto" }}
+              style={{ color: "#4F46E5", margin: "0 auto" }}
             />
             <p className="upload-zone-text">Processing document...</p>
           </>
         ) : (
           <>
-            <Upload size={22} style={{ color: "#002FA7", margin: "0 auto" }} />
+            <Upload size={22} style={{ color: "#4F46E5", margin: "0 auto" }} />
             <p className="upload-zone-text">
               {isDragging ? "Drop file here" : "Upload Document"}
             </p>
@@ -134,21 +134,22 @@ const Sidebar = ({
       {/* URL Ingestion */}
       <div
         style={{
-          margin: "0 12px 8px",
-          padding: "10px",
-          background: "#FAFAFA",
-          border: "1px solid #E4E4E7",
-          borderRadius: 6,
+          margin: "0 14px 10px",
+          padding: "12px",
+          background: "rgba(255, 255, 255, 0.5)",
+          border: "1px solid rgba(255, 255, 255, 0.8)",
+          backdropFilter: "blur(10px)",
+          borderRadius: 12,
         }}
       >
         <div
           style={{
             fontSize: 10,
             fontWeight: 600,
-            color: "#A1A1AA",
+            color: "#8890B2",
             textTransform: "uppercase",
-            letterSpacing: "0.12em",
-            marginBottom: 6,
+            letterSpacing: "0.14em",
+            marginBottom: 8,
           }}
         >
           Ingest URL
@@ -164,14 +165,14 @@ const Sidebar = ({
             disabled={ingestingUrl}
             style={{
               flex: 1,
-              padding: "5px 8px",
-              fontSize: 11,
-              border: "1px solid #D4D4D8",
-              borderRadius: 4,
+              padding: "6px 10px",
+              fontSize: 11.5,
+              border: "1px solid rgba(79, 70, 229, 0.18)",
+              borderRadius: 8,
               outline: "none",
               fontFamily: "'IBM Plex Sans', sans-serif",
-              color: "#09090B",
-              backgroundColor: ingestingUrl ? "#F4F4F5" : "#FFFFFF",
+              color: "#0B1020",
+              backgroundColor: ingestingUrl ? "#EEF0FB" : "#FFFFFF",
             }}
           />
           <button
@@ -183,17 +184,23 @@ const Sidebar = ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              width: 30,
-              height: 30,
-              borderRadius: 4,
+              width: 32,
+              height: 32,
+              borderRadius: 8,
               border: "none",
-              backgroundColor:
-                !urlInput.trim() || ingestingUrl ? "#D4D4D8" : "#002FA7",
+              background:
+                !urlInput.trim() || ingestingUrl
+                  ? "#C4C8DB"
+                  : "linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)",
               color: "#FFFFFF",
               cursor:
                 !urlInput.trim() || ingestingUrl ? "not-allowed" : "pointer",
-              transition: "background-color 0.15s ease",
+              transition: "transform 0.15s ease, box-shadow 0.2s ease",
               flexShrink: 0,
+              boxShadow:
+                !urlInput.trim() || ingestingUrl
+                  ? "none"
+                  : "0 4px 12px rgba(79, 70, 229, 0.3)",
             }}
           >
             {ingestingUrl ? (
@@ -205,9 +212,9 @@ const Sidebar = ({
         </div>
         <p
           style={{
-            fontSize: 9,
-            color: "#A1A1AA",
-            marginTop: 4,
+            fontSize: 9.5,
+            color: "#8890B2",
+            marginTop: 6,
             lineHeight: 1.4,
           }}
         >
@@ -228,15 +235,15 @@ const Sidebar = ({
         {documents.length === 0 && (
           <div
             style={{
-              padding: "20px 16px",
+              padding: "22px 16px",
               textAlign: "center",
-              color: "#A1A1AA",
+              color: "#8890B2",
               fontSize: 12,
             }}
           >
             <FileText
               size={28}
-              style={{ color: "#D4D4D8", margin: "0 auto 8px" }}
+              style={{ color: "#C4C8DB", margin: "0 auto 8px" }}
             />
             <p>No documents yet.</p>
             <p style={{ marginTop: 4 }}>Upload a file or paste a URL.</p>
@@ -264,9 +271,9 @@ const Sidebar = ({
                 data-testid={`doc-checkbox-${doc.id}`}
               >
                 {isSelected ? (
-                  <CheckSquare size={15} style={{ color: "#002FA7" }} />
+                  <CheckSquare size={15} style={{ color: "#4F46E5" }} />
                 ) : (
-                  <Square size={15} style={{ color: "#D4D4D8" }} />
+                  <Square size={15} style={{ color: "#B4BAD4" }} />
                 )}
               </button>
 
@@ -292,7 +299,7 @@ const Sidebar = ({
                       style={{
                         display: "inline",
                         marginRight: 4,
-                        color: "#8B5CF6",
+                        color: "#A855F7",
                       }}
                     />
                   )}
@@ -324,11 +331,12 @@ const Sidebar = ({
       {documents.length > 0 && (
         <div
           style={{
-            padding: "8px 12px",
+            padding: "10px 14px",
             fontSize: 10,
-            color: "#A1A1AA",
-            borderTop: "1px solid #E4E4E7",
+            color: "#8890B2",
+            borderTop: "1px solid rgba(255,255,255,0.5)",
             lineHeight: 1.5,
+            background: "rgba(255,255,255,0.35)",
           }}
         >
           Check documents to filter queries. Uncheck all to search everything.

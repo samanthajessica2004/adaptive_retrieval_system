@@ -17,12 +17,12 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const DOC_COLORS = [
-  "#002FA7",
-  "#10B981",
-  "#F59E0B",
-  "#EF4444",
-  "#8B5CF6",
+  "#4F46E5",
   "#06B6D4",
+  "#A855F7",
+  "#F59E0B",
+  "#10B981",
+  "#F43F5E",
   "#EC4899",
   "#84CC16",
 ];
@@ -35,27 +35,28 @@ const CustomTooltip = ({ active, payload }) => {
   return (
     <div
       style={{
-        background: "#FFFFFF",
-        border: "1px solid #E4E4E7",
-        borderRadius: 4,
-        padding: "10px 12px",
-        maxWidth: 260,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+        background: "rgba(255, 255, 255, 0.85)",
+        backdropFilter: "blur(16px) saturate(180%)",
+        border: "1px solid rgba(255,255,255,0.9)",
+        borderRadius: 12,
+        padding: "11px 14px",
+        maxWidth: 280,
+        boxShadow: "0 12px 30px rgba(31, 38, 135, 0.15)",
       }}
     >
       <div
         style={{
           fontSize: 10,
           fontWeight: 700,
-          color: "#002FA7",
+          color: "#4F46E5",
           textTransform: "uppercase",
-          letterSpacing: "0.1em",
-          marginBottom: 4,
+          letterSpacing: "0.12em",
+          marginBottom: 5,
         }}
       >
         {data.doc_name}
       </div>
-      <p style={{ fontSize: 11, color: "#52525B", lineHeight: 1.5, margin: 0 }}>
+      <p style={{ fontSize: 11.5, color: "#2D3250", lineHeight: 1.55, margin: 0 }}>
         {data.text_preview}
       </p>
     </div>
@@ -115,15 +116,15 @@ const DocumentMapTab = ({ documents }) => {
           <div
             style={{
               fontFamily: "'Cabinet Grotesk', sans-serif",
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 700,
-              color: "#09090B",
-              letterSpacing: "-0.01em",
+              color: "#0B1020",
+              letterSpacing: "-0.02em",
             }}
           >
             Document Semantic Map
           </div>
-          <div style={{ fontSize: 11, color: "#A1A1AA", marginTop: 1 }}>
+          <div style={{ fontSize: 11, color: "#8890B2", marginTop: 2, letterSpacing: "0.02em" }}>
             {points.length > 0
               ? `${points.length} chunks across ${docGroupEntries.length} document${
                   docGroupEntries.length !== 1 ? "s" : ""
@@ -133,7 +134,7 @@ const DocumentMapTab = ({ documents }) => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {lastFetch && (
-            <span style={{ fontSize: 10, color: "#A1A1AA" }}>
+            <span style={{ fontSize: 10, color: "#8890B2" }}>
               Last updated: {lastFetch.toLocaleTimeString()}
             </span>
           )}
@@ -144,16 +145,17 @@ const DocumentMapTab = ({ documents }) => {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 5,
-              padding: "6px 12px",
+              gap: 6,
+              padding: "7px 14px",
               fontSize: 12,
               fontWeight: 500,
-              color: documents.length < 2 ? "#D4D4D8" : "#52525B",
-              border: "1px solid #E4E4E7",
-              borderRadius: 4,
-              background: "#FFFFFF",
+              color: documents.length < 2 ? "#C4C8DB" : "#4F46E5",
+              border: "1px solid rgba(79, 70, 229, 0.2)",
+              borderRadius: 999,
+              background: "rgba(255,255,255,0.7)",
               cursor: documents.length < 2 ? "not-allowed" : "pointer",
-              transition: "all 0.15s ease",
+              transition: "all 0.2s ease",
+              backdropFilter: "blur(10px)",
             }}
           >
             {isLoading ? (
@@ -173,12 +175,12 @@ const DocumentMapTab = ({ documents }) => {
             <Loader2
               size={32}
               className="animate-spin"
-              style={{ color: "#002FA7" }}
+              style={{ color: "#4F46E5" }}
             />
-            <p style={{ color: "#71717A", fontSize: 13 }}>
+            <p style={{ color: "#5B6384", fontSize: 13 }}>
               Computing UMAP projection of {documents.length} documents...
             </p>
-            <p style={{ color: "#A1A1AA", fontSize: 11 }}>
+            <p style={{ color: "#8890B2", fontSize: 11 }}>
               This may take a moment on first load.
             </p>
           </div>
@@ -186,24 +188,25 @@ const DocumentMapTab = ({ documents }) => {
 
         {!isLoading && points.length === 0 && (
           <div className="empty-state" data-testid="map-empty-state">
-            <Map size={40} style={{ color: "#D4D4D8" }} />
+            <Map size={44} style={{ color: "#C4C8DB" }} />
             <div
-              style={{ fontWeight: 600, fontSize: 15, color: "#52525B" }}
+              style={{ fontWeight: 700, fontSize: 17, color: "#2D3250", fontFamily: "'Cabinet Grotesk', sans-serif", letterSpacing: "-0.02em" }}
             >
               Document Semantic Map
             </div>
             <p
               style={{
-                maxWidth: 380,
-                lineHeight: 1.6,
-                fontSize: 13,
+                maxWidth: 420,
+                lineHeight: 1.7,
+                fontSize: 13.5,
                 textAlign: "center",
+                color: "#5B6384",
               }}
             >
               {message ||
                 "Upload at least 2 documents to visualize their semantic clusters in 2D space."}
             </p>
-            <p style={{ fontSize: 11, color: "#A1A1AA" }}>
+            <p style={{ fontSize: 11, color: "#8890B2", maxWidth: 380, lineHeight: 1.5 }}>
               Each dot represents a text chunk. Nearby dots share similar
               meaning. Clusters reveal topical structure.
             </p>
@@ -216,7 +219,7 @@ const DocumentMapTab = ({ documents }) => {
             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
               <CartesianGrid
                 strokeDasharray="4 4"
-                stroke="#F4F4F5"
+                stroke="rgba(79, 70, 229, 0.08)"
                 strokeWidth={1}
               />
               <XAxis

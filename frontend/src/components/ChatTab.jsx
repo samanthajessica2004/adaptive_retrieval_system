@@ -5,9 +5,8 @@ import {
   Plus,
   AlertCircle,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
   Zap,
+  Sparkles,
 } from "lucide-react";
 
 const MODES = [
@@ -32,76 +31,6 @@ const getConfidenceLabel = (score) => {
   return "Low";
 };
 
-const SourceChunks = ({ chunks }) => {
-  const [expanded, setExpanded] = useState(false);
-  if (!chunks || chunks.length === 0) return null;
-
-  return (
-    <div style={{ marginTop: 12, borderTop: "1px solid #F4F4F5", paddingTop: 10 }}>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          fontSize: 11,
-          color: "#71717A",
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontWeight: 600,
-          textTransform: "uppercase",
-          letterSpacing: "0.1em",
-          padding: 0,
-        }}
-        data-testid="toggle-sources-btn"
-      >
-        {expanded ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-        {chunks.length} source chunk{chunks.length !== 1 ? "s" : ""}
-      </button>
-      {expanded && (
-        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-          {chunks.map((chunk, i) => (
-            <div
-              key={i}
-              style={{
-                background: "#F8F8F8",
-                border: "1px solid #E4E4E7",
-                borderRadius: 3,
-                padding: "8px 10px",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  fontWeight: 600,
-                  color: "#002FA7",
-                  marginBottom: 4,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                }}
-              >
-                {chunk.doc_name}
-              </div>
-              <p
-                style={{
-                  fontSize: 11,
-                  color: "#52525B",
-                  lineHeight: 1.6,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  margin: 0,
-                }}
-              >
-                {chunk.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
 const StreamingStatus = ({ status }) => {
   const labels = {
     retrieving: "Retrieving relevant chunks...",
@@ -109,8 +38,8 @@ const StreamingStatus = ({ status }) => {
   };
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <Loader2 size={14} className="animate-spin" style={{ color: "#002FA7" }} />
-      <span style={{ fontSize: 13, color: "#A1A1AA" }}>
+      <Loader2 size={14} className="animate-spin" style={{ color: "#4F46E5" }} />
+      <span style={{ fontSize: 13, color: "#8890B2" }}>
         {labels[status] || "Processing..."}
       </span>
     </div>
@@ -147,11 +76,11 @@ const AssistantMessage = ({ msg }) => {
               gap: 5,
               marginBottom: 10,
               fontSize: 11,
-              color: "#A1A1AA",
+              color: "#8890B2",
             }}
             data-testid="rewritten-query-badge"
           >
-            <Zap size={11} style={{ color: "#002FA7" }} />
+            <Zap size={11} style={{ color: "#4F46E5" }} />
             <span style={{ fontStyle: "italic" }}>
               Search: &ldquo;{msg.rewritten_query}&rdquo;
             </span>
@@ -167,11 +96,12 @@ const AssistantMessage = ({ msg }) => {
         {showingContent && (
           <p
             style={{
-              fontSize: 14,
-              color: "#3F3F46",
-              lineHeight: 1.7,
+              fontSize: 14.5,
+              color: "#2D3250",
+              lineHeight: 1.75,
               margin: 0,
               whiteSpace: "pre-wrap",
+              letterSpacing: "0.005em",
             }}
           >
             {msg.content}
@@ -246,29 +176,24 @@ const AssistantMessage = ({ msg }) => {
                 marginTop: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div
                   style={{
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
                     backgroundColor: color,
+                    boxShadow: `0 0 8px ${color}80`,
                   }}
                 />
-                <span style={{ fontSize: 11, color: "#A1A1AA" }}>
+                <span style={{ fontSize: 11, color: "#8890B2", fontWeight: 500 }}>
                   {getConfidenceLabel(confidence)} confidence (
                   {Math.round(confidence * 100)}%)
                 </span>
               </div>
               {msg.is_grounded && (
                 <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 11,
-                    color: "#10B981",
-                  }}
+                  className="grounded-badge"
                   data-testid="grounded-badge"
                 >
                   <CheckCircle2 size={11} />
@@ -276,9 +201,6 @@ const AssistantMessage = ({ msg }) => {
                 </span>
               )}
             </div>
-
-            {/* Source chunks (collapsible) */}
-            <SourceChunks chunks={msg.source_chunks} />
           </>
         )}
       </div>
@@ -341,7 +263,7 @@ const ChatTab = ({
             </button>
           ))}
         </div>
-        <span style={{ fontSize: 11, color: "#A1A1AA" }}>
+        <span style={{ fontSize: 11, color: "#8890B2", fontWeight: 500 }}>
           {selectedDocIds.length > 0
             ? `${selectedDocIds.length} doc${
                 selectedDocIds.length > 1 ? "s" : ""
@@ -363,20 +285,7 @@ const ChatTab = ({
         {messages.length === 0 && (
           <div className="empty-chat" data-testid="empty-chat-state">
             <div className="empty-chat-icon">
-              <svg
-                width="32"
-                height="32"
-                fill="none"
-                stroke="#002FA7"
-                strokeWidth="1.5"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M9 12h6M9 16h6M7 8h10M3 6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6z"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <Sparkles size={34} strokeWidth={1.5} style={{ color: "#4F46E5" }} />
             </div>
             <h3 className="empty-chat-title">Adaptive Retrieval System</h3>
             <p className="empty-chat-desc">
@@ -424,9 +333,9 @@ const ChatTab = ({
               <Loader2
                 size={15}
                 className="animate-spin"
-                style={{ color: "#002FA7" }}
+                style={{ color: "#4F46E5" }}
               />
-              <span style={{ fontSize: 13, color: "#71717A" }}>
+              <span style={{ fontSize: 13, color: "#5B6384" }}>
                 Initializing retrieval...
               </span>
             </div>

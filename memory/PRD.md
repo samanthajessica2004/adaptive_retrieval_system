@@ -29,9 +29,17 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 10. CRAG self-evaluation (hallucination detection)
 11. UMAP 2D document map visualization
 12. Chat export to PDF (ReportLab)
-13. Light/clean Swiss design (#002FA7 accent, IBM Plex Sans + Cabinet Grotesk)
+13. Light/clean soft-glassmorphism design (indigo-cyan gradient accents, IBM Plex Sans + Cabinet Grotesk)
 
 ## What's Been Implemented (2026-02)
+
+### UI Overhaul — Soft Glassmorphism (2026-02-22)
+- Mesh gradient canvas with ambient blobs (indigo, cyan, violet, rose) + noise overlay
+- Frosted glass panels for Sidebar / Tab bar / Tab content with `backdrop-filter: blur(24px) saturate(180%)`
+- Pill-style tabs with active indigo→cyan gradient
+- Message bubbles: user (indigo gradient), AI (glass card with soft shadow + rounded 18px)
+- Gradient send button, gradient text titles, animated floating empty-state icon
+- Source chunks removed from Chat UI (per user request); confidence bar, source pills, grounded badge retained
 
 ### Backend
 - `server.py` — All routes with rate limiting (slowapi), file size validation (50MB), streaming SSE `/api/chat/stream`, URL ingestion `/api/documents/ingest-url`
@@ -66,7 +74,7 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 - Search history / saved queries
 
 ## Next Tasks
-1. Test with real PDF documents
-2. Add streaming response support for long answers
-3. Add file size validation
-4. Consider adding a "search within documents" feature
+1. **P1 — Inline "Compare vs. URL" shortcut** inside the Compare tab (let users paste a URL and compare against an uploaded doc without going through sidebar ingestion first)
+2. **P2 — Search within documents**: keyword search across the doc library with highlighted snippets
+3. **P2 — Refactor backend**: split `server.py` into `/app/backend/routes/` modules (chat, documents, compare, visualize)
+4. **P2 — Bulk upload**: drag multiple files at once
