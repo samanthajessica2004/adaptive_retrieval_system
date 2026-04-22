@@ -91,42 +91,155 @@ function App() {
   };
 
   const handleSendMessage = async (query, mode) => {
-    const userMsg = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: query,
-    };
-    setMessages((prev) => [...prev, userMsg]);
+    const userMsg = { id: crypto.randomUUID(), role: "user", content: query };
+    const aiMsgId = crypto.randomUUID();
+
+    // Add user message + empty streaming AI message immediately
+    setMessages((prev) => [
+      ...prev,
+      userMsg,
+      {
+        id: aiMsgId,
+        role: "assistant",
+        content: "",
+        isStreaming: true,
+        streamStatus: "retrieving",
+        confidence: 0,
+        sources: [],
+        source_chunks: [],
+        is_grounded: true,
+        has_contradiction: false,
+        crag_note: "",
+        rewritten_query: null,
+      },
+    ]);
     setChatLoading(true);
 
     try {
-      const res = await axios.post(`${API}/chat`, {
-        query,
-        session_id: sessionId,
-        doc_ids: selectedDocIds,
-        mode,
+      const response = await fetch(`${API}/chat/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query,
+          session_id: sessionId,
+          doc_ids: selectedDocIds,
+          mode,
+        }),
       });
 
-      const aiMsg = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: res.data.answer,
-        confidence: res.data.confidence,
-        has_contradiction: res.data.has_contradiction,
-        contradiction_description: res.data.contradiction_description,
-        sources: res.data.sources,
-        source_chunks: res.data.source_chunks,
-        is_grounded: res.data.is_grounded,
-        crag_note: res.data.crag_note,
-        rewritten_query:
-          res.data.rewritten_query !== query ? res.data.rewritten_query : null,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
+      if (!response.ok) {
+        let errMsg = `HTTP ${response.status}`;
+        try {
+          const errData = await response.json();
+          errMsg = errData.detail || errMsg;
+        } catch {}
+        throw new Error(errMsg);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            const data = JSON.parse(jsonStr);
+
+            if (data.error) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? { ...m, isStreaming: false, streamStatus: "done", content: `Error: ${data.error}` }
+                    : m
+                )
+              );
+              setChatLoading(false);
+              return;
+            }
+
+            if (data.status === "retrieving") {
+              setChatLoading(false);
+              if (data.rewritten_query && data.rewritten_query !== query) {
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === aiMsgId
+                      ? { ...m, rewritten_query: data.rewritten_query }
+                      : m
+                  )
+                );
+              }
+            }
+
+            if (data.status === "generating") {
+              setChatLoading(false);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId ? { ...m, streamStatus: "generating" } : m
+                )
+              );
+            }
+
+            if (data.token) {
+              setChatLoading(false);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        content: m.content + data.token,
+                        streamStatus: "streaming",
+                      }
+                    : m
+                )
+              );
+            }
+
+            if (data.done) {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === aiMsgId
+                    ? {
+                        ...m,
+                        isStreaming: false,
+                        streamStatus: "done",
+                        content: data.answer,
+                        confidence: data.confidence,
+                        has_contradiction: data.has_contradiction,
+                        contradiction_description: data.contradiction_description,
+                        sources: data.sources || [],
+                        source_chunks: data.source_chunks || [],
+                        is_grounded: data.is_grounded,
+                        crag_note: data.crag_note || "",
+                        rewritten_query:
+                          data.rewritten_query !== query
+                            ? data.rewritten_query
+                            : null,
+                      }
+                    : m
+                )
+              );
+            }
+          } catch {
+            // Skip parse errors
+          }
+        }
+      }
     } catch (e) {
-      toast.error(
-        e.response?.data?.detail || "Failed to get a response. Check Groq API key."
+      toast.error(e.message || "Failed to get a response. Check Groq API key.");
+      setMessages((prev) =>
+        prev.filter((m) => m.id !== aiMsgId && m.id !== userMsg.id)
       );
-      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
     } finally {
       setChatLoading(false);
     }
@@ -167,7 +280,9 @@ function App() {
 
   const toggleDocSelection = (docId) => {
     setSelectedDocIds((prev) =>
-      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+      prev.includes(docId)
+        ? prev.filter((id) => id !== docId)
+        : [...prev, docId]
     );
   };
 
@@ -229,9 +344,15 @@ function App() {
           </button>
         </div>
 
-        {/* Tab Content */}
+        {/* Tab Content — always rendered, toggled via display */}
         <div className="tab-content">
-          {activeTab === "chat" && (
+          <div
+            style={{
+              display: activeTab === "chat" ? "flex" : "none",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
             <ChatTab
               messages={messages}
               onSend={handleSendMessage}
@@ -240,11 +361,25 @@ function App() {
               documents={documents}
               selectedDocIds={selectedDocIds}
             />
-          )}
-          {activeTab === "compare" && <CompareTab documents={documents} />}
-          {activeTab === "map" && (
+          </div>
+          <div
+            style={{
+              display: activeTab === "compare" ? "flex" : "none",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
+            <CompareTab documents={documents} />
+          </div>
+          <div
+            style={{
+              display: activeTab === "map" ? "flex" : "none",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
             <DocumentMapTab documents={documents} />
-          )}
+          </div>
         </div>
       </main>
     </div>

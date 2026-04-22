@@ -34,18 +34,19 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 ## What's Been Implemented (2026-02)
 
 ### Backend
-- `server.py` — All routes: upload, list, delete, chat, compare, visualize, export PDF, session
+- `server.py` — All routes with rate limiting (slowapi), file size validation (50MB), streaming SSE endpoint `/api/chat/stream`
 - `rag_engine.py` — Embeddings, semantic chunking, BM25, vector, hybrid search, CrossEncoder reranking, UMAP
-- `groq_service.py` — Query rewriting, answer generation, contradiction detection, CRAG self-evaluation
+- `groq_service.py` — Query rewriting, streaming answer generation, contradiction detection, CRAG self-evaluation
 - `document_processor.py` — Text extraction (PDF/DOCX/TXT/MD/CSV/HTML)
 - `pdf_export.py` — ReportLab PDF generation with styled conversation history
 
 ### Frontend
-- `App.js` — Main layout, state management, session persistence (localStorage)
+- `App.js` — Main layout, streaming `handleSendMessage` via SSE fetch, tabs rendered with display:none (no remounts)
 - `Sidebar.jsx` — Document list with checkboxes, drag-and-drop upload, delete
-- `ChatTab.jsx` — Mode switcher, message list, confidence bar, contradiction alerts, CRAG warnings, source citations
+- `ChatTab.jsx` — Mode switcher, streaming messages with blinking cursor, real-time status ("Retrieving..." → "Generating..."), confidence bar, contradiction alerts, CRAG warnings
 - `CompareTab.jsx` — Multi-document selector, query input, side-by-side comparison grid
 - `DocumentMapTab.jsx` — UMAP scatter chart with per-document colors and hover tooltips
+- Badge removed from `index.html` + `App.css`
 
 ## Backlog
 

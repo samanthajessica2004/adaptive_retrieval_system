@@ -665,6 +665,35 @@
   background: #A1A1AA;
 }
 
+/* Hide Emergent badge — push off-screen (inline style has display !important but not bottom/right) */
+#emergent-badge {
+  bottom: -999px !important;
+  right: -999px !important;
+  pointer-events: none !important;
+  opacity: 0 !important;
+}
+
+/* Streaming cursor */
+.streaming-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #002FA7;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink-cursor 0.6s step-end infinite;
+}
+
+@keyframes blink-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* Hide Emergent badge */
+#emergent-badge {
+  display: none !important;
+}
+
 /* Animations */
 @keyframes spin {
   to { transform: rotate(360deg); }

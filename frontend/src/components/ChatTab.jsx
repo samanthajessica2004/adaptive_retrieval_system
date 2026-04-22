@@ -102,21 +102,40 @@ const SourceChunks = ({ chunks }) => {
   );
 };
 
+const StreamingStatus = ({ status }) => {
+  const labels = {
+    retrieving: "Retrieving relevant chunks...",
+    generating: "Generating answer...",
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <Loader2 size={14} className="animate-spin" style={{ color: "#002FA7" }} />
+      <span style={{ fontSize: 13, color: "#A1A1AA" }}>
+        {labels[status] || "Processing..."}
+      </span>
+    </div>
+  );
+};
+
 const AssistantMessage = ({ msg }) => {
   const confidence = msg.confidence || 0;
   const color = getConfidenceColor(confidence);
+  const isStreaming = msg.isStreaming;
+  const showingContent = msg.content && msg.content.length > 0;
 
   return (
     <div className="ai-message-card" data-testid="ai-message">
-      {/* Confidence bar */}
-      <div
-        className="confidence-bar"
-        data-testid="confidence-bar"
-        style={{
-          width: `${Math.round(confidence * 100)}%`,
-          backgroundColor: color,
-        }}
-      />
+      {/* Confidence bar — only when done */}
+      {!isStreaming && (
+        <div
+          className="confidence-bar"
+          data-testid="confidence-bar"
+          style={{
+            width: `${Math.round(confidence * 100)}%`,
+            backgroundColor: color,
+          }}
+        />
+      )}
 
       <div className="ai-message-body">
         {/* Rewritten query badge */}
@@ -139,116 +158,129 @@ const AssistantMessage = ({ msg }) => {
           </div>
         )}
 
+        {/* Streaming status — show when streaming but no content yet */}
+        {isStreaming && !showingContent && (
+          <StreamingStatus status={msg.streamStatus} />
+        )}
+
         {/* Answer text */}
-        <p
-          style={{
-            fontSize: 14,
-            color: "#3F3F46",
-            lineHeight: 1.7,
-            margin: 0,
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {msg.content}
-        </p>
-
-        {/* Sources */}
-        {msg.sources && msg.sources.length > 0 && (
-          <div
-            style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}
+        {showingContent && (
+          <p
+            style={{
+              fontSize: 14,
+              color: "#3F3F46",
+              lineHeight: 1.7,
+              margin: 0,
+              whiteSpace: "pre-wrap",
+            }}
           >
-            {msg.sources.map((src, i) => (
-              <span key={i} className="source-badge" data-testid="source-badge">
-                {src}
-              </span>
-            ))}
-          </div>
+            {msg.content}
+            {isStreaming && <span className="streaming-cursor">|</span>}
+          </p>
         )}
 
-        {/* Contradiction alert */}
-        {msg.has_contradiction && (
-          <div className="contradiction-alert" data-testid="contradiction-alert">
-            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
+        {/* Sources, contradiction, CRAG, confidence — only when streaming done */}
+        {!isStreaming && showingContent && (
+          <>
+            {/* Sources */}
+            {msg.sources && msg.sources.length > 0 && (
               <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  marginBottom: 2,
-                }}
+                style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 10 }}
               >
-                Conflicting Information Detected
+                {msg.sources.map((src, i) => (
+                  <span key={i} className="source-badge" data-testid="source-badge">
+                    {src}
+                  </span>
+                ))}
               </div>
-              <div>{msg.contradiction_description}</div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* CRAG warning */}
-        {!msg.is_grounded && msg.crag_note && (
-          <div className="crag-warning" data-testid="crag-warning">
-            <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <div
-                style={{
-                  fontWeight: 700,
-                  fontSize: 10,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.12em",
-                  marginBottom: 2,
-                }}
-              >
-                May Contain Unsupported Claims
+            {/* Contradiction alert */}
+            {msg.has_contradiction && (
+              <div className="contradiction-alert" data-testid="contradiction-alert">
+                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 10,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.12em",
+                      marginBottom: 2,
+                    }}
+                  >
+                    Conflicting Information Detected
+                  </div>
+                  <div>{msg.contradiction_description}</div>
+                </div>
               </div>
-              <div>{msg.crag_note}</div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Footer: confidence + grounded */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            marginTop: 12,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            {/* CRAG warning */}
+            {!msg.is_grounded && msg.crag_note && (
+              <div className="crag-warning" data-testid="crag-warning">
+                <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                <div>
+                  <div
+                    style={{
+                      fontWeight: 700,
+                      fontSize: 10,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.12em",
+                      marginBottom: 2,
+                    }}
+                  >
+                    May Contain Unsupported Claims
+                  </div>
+                  <div>{msg.crag_note}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Footer: confidence + grounded */}
             <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                backgroundColor: color,
-              }}
-            />
-            <span style={{ fontSize: 11, color: "#A1A1AA" }}>
-              {getConfidenceLabel(confidence)} confidence (
-              {Math.round(confidence * 100)}%)
-            </span>
-          </div>
-          {msg.is_grounded && (
-            <span
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 4,
-                fontSize: 11,
-                color: "#10B981",
+                gap: 10,
+                marginTop: 12,
               }}
-              data-testid="grounded-badge"
             >
-              <CheckCircle2 size={11} />
-              Grounded
-            </span>
-          )}
-        </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                <div
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: "50%",
+                    backgroundColor: color,
+                  }}
+                />
+                <span style={{ fontSize: 11, color: "#A1A1AA" }}>
+                  {getConfidenceLabel(confidence)} confidence (
+                  {Math.round(confidence * 100)}%)
+                </span>
+              </div>
+              {msg.is_grounded && (
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    color: "#10B981",
+                  }}
+                  data-testid="grounded-badge"
+                >
+                  <CheckCircle2 size={11} />
+                  Grounded
+                </span>
+              )}
+            </div>
 
-        {/* Source chunks (collapsible) */}
-        <SourceChunks chunks={msg.source_chunks} />
+            {/* Source chunks (collapsible) */}
+            <SourceChunks chunks={msg.source_chunks} />
+          </>
+        )}
       </div>
     </div>
   );
@@ -395,7 +427,7 @@ const ChatTab = ({
                 style={{ color: "#002FA7" }}
               />
               <span style={{ fontSize: 13, color: "#71717A" }}>
-                Retrieving & generating answer...
+                Initializing retrieval...
               </span>
             </div>
           </div>

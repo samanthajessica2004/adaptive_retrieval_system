@@ -1,11 +1,15 @@
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException, Request, Depends
+from fastapi.responses import StreamingResponse, JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
 from typing import List, Optional
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 import uuid
+import json
 import logging
 import tempfile
 import asyncio
@@ -31,7 +35,13 @@ db = client[os.environ["DB_NAME"]]
 rag_engine = RagEngine()
 groq_service = GroqService(os.environ["GROQ_API_KEY"])
 
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 api_router = APIRouter(prefix="/api")
 
 app.add_middleware(
@@ -45,13 +55,15 @@ app.add_middleware(
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+MAX_UPLOAD_SIZE = 50 * 1024 * 1024  # 50 MB
+
 
 # --- Pydantic Models ---
 class ChatRequest(BaseModel):
     query: str
     session_id: str
     doc_ids: Optional[List[str]] = []
-    mode: str = "hybrid"  # hybrid | vector | bm25
+    mode: str = "hybrid"
 
 
 class CompareRequest(BaseModel):
@@ -70,19 +82,25 @@ async def health():
 
 
 @api_router.post("/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+@limiter.limit("15/minute")
+async def upload_document(request: Request, file: UploadFile = File(...)):
     doc_id = str(uuid.uuid4())
     suffix = Path(file.filename or "upload.txt").suffix or ".txt"
 
+    content = await file.read()
+
+    if len(content) > MAX_UPLOAD_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is 50MB.",
+        )
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name
 
     try:
         file_ext = suffix.lstrip(".").lower()
-
-        # Extract text in thread (blocking IO)
         text = await asyncio.to_thread(extract_text, tmp_path, file_ext)
 
         if not text or len(text.strip()) < 10:
@@ -91,7 +109,6 @@ async def upload_document(file: UploadFile = File(...)):
                 detail="Could not extract meaningful text from this document.",
             )
 
-        # Semantic chunking
         chunks = await asyncio.to_thread(rag_engine.semantic_chunk, text)
         chunk_texts = [c for c in chunks if len(c.strip()) > 20]
 
@@ -100,10 +117,8 @@ async def upload_document(file: UploadFile = File(...)):
                 status_code=400, detail="No valid text chunks found in document."
             )
 
-        # Compute embeddings (slow — in thread)
         embeddings = await asyncio.to_thread(rag_engine.get_embeddings, chunk_texts)
 
-        # Store document
         doc = {
             "id": doc_id,
             "name": file.filename,
@@ -114,7 +129,6 @@ async def upload_document(file: UploadFile = File(...)):
         }
         await db.documents.insert_one(doc)
 
-        # Store chunks with embeddings
         chunk_docs = [
             {
                 "doc_id": doc_id,
@@ -155,10 +169,11 @@ async def delete_document(doc_id: str):
 
 
 @api_router.post("/chat")
-async def chat(request: ChatRequest):
+@limiter.limit("30/minute")
+async def chat(request: Request, body: ChatRequest):
     query_filter = {}
-    if request.doc_ids:
-        query_filter = {"doc_id": {"$in": request.doc_ids}}
+    if body.doc_ids:
+        query_filter = {"doc_id": {"$in": body.doc_ids}}
 
     all_chunks = await db.chunks.find(query_filter, {"_id": 0}).to_list(5000)
 
@@ -172,95 +187,53 @@ async def chat(request: ChatRequest):
             "source_chunks": [],
             "is_grounded": True,
             "crag_note": "",
-            "rewritten_query": request.query,
+            "rewritten_query": body.query,
         }
 
-    # Get conversation history
-    session = await db.sessions.find_one({"id": request.session_id}, {"_id": 0})
+    session = await db.sessions.find_one({"id": body.session_id}, {"_id": 0})
     conversation_history = session.get("messages", []) if session else []
 
-    # Step 1: Query rewriting
-    rewritten_query = await groq_service.rewrite_query(
-        request.query, conversation_history
-    )
+    rewritten_query = await groq_service.rewrite_query(body.query, conversation_history)
+    query_embedding = await asyncio.to_thread(rag_engine.get_embedding, rewritten_query)
 
-    # Step 2: Query embedding (in thread)
-    query_embedding = await asyncio.to_thread(
-        rag_engine.get_embedding, rewritten_query
-    )
-
-    # Step 3: Retrieve
     chunk_texts = [c["text"] for c in all_chunks]
     chunk_embeddings = [c["embedding"] for c in all_chunks]
 
-    if request.mode == "hybrid":
+    if body.mode == "hybrid":
         results = await asyncio.to_thread(
-            rag_engine.hybrid_search,
-            rewritten_query,
-            query_embedding,
-            chunk_texts,
-            chunk_embeddings,
-            10,
+            rag_engine.hybrid_search, rewritten_query, query_embedding, chunk_texts, chunk_embeddings, 10
         )
-    elif request.mode == "bm25":
-        results = await asyncio.to_thread(
-            rag_engine.bm25_search, rewritten_query, chunk_texts, 10
-        )
-    else:  # vector
-        results = await asyncio.to_thread(
-            rag_engine.vector_search, query_embedding, chunk_embeddings, 10
-        )
+    elif body.mode == "bm25":
+        results = await asyncio.to_thread(rag_engine.bm25_search, rewritten_query, chunk_texts, 10)
+    else:
+        results = await asyncio.to_thread(rag_engine.vector_search, query_embedding, chunk_embeddings, 10)
 
-    if not results:
-        results = []
-
-    # Step 4: CrossEncoder reranking
-    reranked = await asyncio.to_thread(
-        rag_engine.rerank, rewritten_query, chunk_texts, results[:10]
-    )
+    results = results or []
+    reranked = await asyncio.to_thread(rag_engine.rerank, rewritten_query, chunk_texts, results[:10])
     top_results = reranked[:5] if reranked else [(idx, s) for idx, s in results[:5]]
 
-    # Step 5: Top chunks
-    top_chunks = [
-        all_chunks[idx] for idx, _ in top_results if idx < len(all_chunks)
-    ]
+    top_chunks = [all_chunks[idx] for idx, _ in top_results if idx < len(all_chunks)]
     top_chunk_texts = [c["text"] for c in top_chunks]
 
-    # Step 6: Parallel async LLM calls
-    answer_task = groq_service.generate_answer(
-        request.query, top_chunk_texts, conversation_history
-    )
+    answer_task = groq_service.generate_answer(body.query, top_chunk_texts, conversation_history)
     contradiction_task = groq_service.detect_contradictions(top_chunk_texts)
-    answer, contradiction_result = await asyncio.gather(
-        answer_task, contradiction_task
-    )
+    answer, contradiction_result = await asyncio.gather(answer_task, contradiction_task)
     has_contradiction, contradiction_desc = contradiction_result
 
-    # Step 7: Confidence (use initial retrieval scores — more stable than CrossEncoder sigmoid)
     confidence = await asyncio.to_thread(rag_engine.compute_confidence, results[:5])
+    is_grounded, crag_note = await groq_service.self_evaluate(answer, top_chunk_texts)
 
-    # Step 8: CRAG self-evaluation
-    is_grounded, crag_note = await groq_service.self_evaluate(
-        answer, top_chunk_texts
-    )
-
-    # Update session
     sources = list(set([c["doc_name"] for c in top_chunks]))
     new_messages = conversation_history + [
-        {"role": "user", "content": request.query},
-        {
-            "role": "assistant",
-            "content": answer,
-            "sources": sources,
-            "confidence": confidence,
-        },
+        {"role": "user", "content": body.query},
+        {"role": "assistant", "content": answer, "sources": sources, "confidence": confidence},
     ]
 
     await db.sessions.update_one(
-        {"id": request.session_id},
+        {"id": body.session_id},
         {
             "$set": {
-                "id": request.session_id,
+                "id": body.session_id,
                 "messages": new_messages[-20:],
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
@@ -283,24 +256,176 @@ async def chat(request: ChatRequest):
     }
 
 
+@api_router.post("/chat/stream")
+@limiter.limit("30/minute")
+async def chat_stream(request: Request, body: ChatRequest):
+    """Streaming chat via Server-Sent Events."""
+
+    async def generate():
+        try:
+            query_filter = {}
+            if body.doc_ids:
+                query_filter = {"doc_id": {"$in": body.doc_ids}}
+
+            all_chunks = await db.chunks.find(query_filter, {"_id": 0}).to_list(5000)
+
+            if not all_chunks:
+                yield f"data: {json.dumps({'error': 'No documents found. Please upload documents first.'})}\n\n"
+                return
+
+            session = await db.sessions.find_one({"id": body.session_id}, {"_id": 0})
+            conversation_history = session.get("messages", []) if session else []
+
+            # Step 1: Query rewriting
+            rewritten_query = await groq_service.rewrite_query(body.query, conversation_history)
+            yield f"data: {json.dumps({'status': 'retrieving', 'rewritten_query': rewritten_query})}\n\n"
+
+            # Step 2: Embedding + retrieval
+            query_embedding = await asyncio.to_thread(rag_engine.get_embedding, rewritten_query)
+
+            chunk_texts = [c["text"] for c in all_chunks]
+            chunk_embeddings = [c["embedding"] for c in all_chunks]
+
+            if body.mode == "hybrid":
+                results = await asyncio.to_thread(
+                    rag_engine.hybrid_search, rewritten_query, query_embedding, chunk_texts, chunk_embeddings, 10
+                )
+            elif body.mode == "bm25":
+                results = await asyncio.to_thread(rag_engine.bm25_search, rewritten_query, chunk_texts, 10)
+            else:
+                results = await asyncio.to_thread(rag_engine.vector_search, query_embedding, chunk_embeddings, 10)
+
+            results = results or []
+
+            # Step 3: Rerank
+            reranked = await asyncio.to_thread(rag_engine.rerank, rewritten_query, chunk_texts, results[:10])
+            top_results = reranked[:5] if reranked else [(idx, s) for idx, s in results[:5]]
+            top_chunks = [all_chunks[idx] for idx, _ in top_results if idx < len(all_chunks)]
+            top_chunk_texts = [c["text"] for c in top_chunks]
+
+            confidence = await asyncio.to_thread(rag_engine.compute_confidence, results[:5])
+
+            # Step 4: Start contradiction detection async (runs while we stream)
+            contradiction_task = asyncio.ensure_future(
+                groq_service.detect_contradictions(top_chunk_texts)
+            )
+
+            yield f"data: {json.dumps({'status': 'generating'})}\n\n"
+
+            # Step 5: Stream answer token by token
+            context = "\n\n".join(
+                [f"[Source {i+1}]: {chunk}" for i, chunk in enumerate(top_chunk_texts)]
+            )
+            history_text = (
+                "\n".join(
+                    [f"{m['role'].capitalize()}: {m['content'][:300]}" for m in conversation_history[-6:]]
+                )
+                if conversation_history
+                else "None"
+            )
+            system_msg = """You are a precise document analysis assistant. Answer questions based solely on the provided context.
+Use [Source N] notation to cite sources inline. If the context doesn't contain enough information, say so clearly."""
+            user_msg = f"Previous conversation:\n{history_text}\n\nContext from documents:\n{context}\n\nQuestion: {body.query}\n\nAnswer:"
+
+            full_answer = ""
+            try:
+                stream = await groq_service.client.chat.completions.create(
+                    model=groq_service.main_model,
+                    messages=[
+                        {"role": "system", "content": system_msg},
+                        {"role": "user", "content": user_msg},
+                    ],
+                    max_tokens=800,
+                    temperature=0.1,
+                    stream=True,
+                )
+                async for chunk in stream:
+                    token = chunk.choices[0].delta.content or ""
+                    if token:
+                        full_answer += token
+                        yield f"data: {json.dumps({'token': token})}\n\n"
+            except Exception as e:
+                logger.error(f"Groq streaming error: {e}")
+                full_answer = f"Error generating answer: {str(e)}"
+                yield f"data: {json.dumps({'token': full_answer})}\n\n"
+
+            # Step 6: Await contradiction + CRAG
+            try:
+                has_contradiction, contradiction_desc = await contradiction_task
+            except Exception:
+                has_contradiction, contradiction_desc = False, ""
+
+            try:
+                is_grounded, crag_note = await groq_service.self_evaluate(full_answer, top_chunk_texts)
+            except Exception:
+                is_grounded, crag_note = True, ""
+
+            sources = list(set([c["doc_name"] for c in top_chunks]))
+
+            # Step 7: Save session
+            new_messages = conversation_history + [
+                {"role": "user", "content": body.query},
+                {"role": "assistant", "content": full_answer, "sources": sources, "confidence": confidence},
+            ]
+            await db.sessions.update_one(
+                {"id": body.session_id},
+                {
+                    "$set": {
+                        "id": body.session_id,
+                        "messages": new_messages[-20:],
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }
+                },
+                upsert=True,
+            )
+
+            # Final metadata packet
+            final = {
+                "done": True,
+                "answer": full_answer,
+                "confidence": confidence,
+                "has_contradiction": has_contradiction,
+                "contradiction_description": contradiction_desc,
+                "sources": sources,
+                "source_chunks": [
+                    {"text": c["text"][:300], "doc_name": c["doc_name"]} for c in top_chunks
+                ],
+                "is_grounded": is_grounded,
+                "crag_note": crag_note,
+                "rewritten_query": rewritten_query,
+            }
+            yield f"data: {json.dumps(final)}\n\n"
+
+        except Exception as e:
+            logger.error(f"Streaming error: {e}")
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
 @api_router.post("/compare")
-async def compare_documents(request: CompareRequest):
-    if not request.doc_ids:
+@limiter.limit("20/minute")
+async def compare_documents(request: Request, body: CompareRequest):
+    if not body.doc_ids:
         raise HTTPException(status_code=400, detail="Select at least one document.")
 
-    query_embedding = await asyncio.to_thread(
-        rag_engine.get_embedding, request.query
-    )
+    query_embedding = await asyncio.to_thread(rag_engine.get_embedding, body.query)
     results = {}
 
-    for doc_id in request.doc_ids:
+    for doc_id in body.doc_ids:
         doc = await db.documents.find_one({"id": doc_id}, {"_id": 0})
         if not doc:
             continue
 
-        chunks = await db.chunks.find(
-            {"doc_id": doc_id}, {"_id": 0}
-        ).to_list(1000)
+        chunks = await db.chunks.find({"doc_id": doc_id}, {"_id": 0}).to_list(1000)
         if not chunks:
             continue
 
@@ -311,13 +436,11 @@ async def compare_documents(request: CompareRequest):
             rag_engine.vector_search, query_embedding, chunk_embeddings, 5
         )
         reranked = await asyncio.to_thread(
-            rag_engine.rerank, request.query, chunk_texts, vector_results
+            rag_engine.rerank, body.query, chunk_texts, vector_results
         )
         top_chunks = [chunk_texts[idx] for idx, _ in reranked[:3]]
 
-        answer = await groq_service.generate_compare_answer(
-            request.query, top_chunks, doc["name"]
-        )
+        answer = await groq_service.generate_compare_answer(body.query, top_chunks, doc["name"])
 
         results[doc_id] = {
             "doc_name": doc["name"],
@@ -331,8 +454,7 @@ async def compare_documents(request: CompareRequest):
 @api_router.get("/visualize")
 async def get_visualization():
     all_chunks = await db.chunks.find(
-        {},
-        {"_id": 0, "text": 1, "doc_id": 1, "doc_name": 1, "embedding": 1},
+        {}, {"_id": 0, "text": 1, "doc_id": 1, "doc_name": 1, "embedding": 1}
     ).to_list(500)
 
     if len(all_chunks) < 2:
@@ -354,15 +476,12 @@ async def get_visualization():
         }
         for chunk, coord in zip(all_chunks, coords)
     ]
-
     return {"points": points}
 
 
 @api_router.post("/export/pdf")
-async def export_pdf(request: ExportRequest):
-    session = await db.sessions.find_one(
-        {"id": request.session_id}, {"_id": 0}
-    )
+async def export_pdf(body: ExportRequest):
+    session = await db.sessions.find_one({"id": body.session_id}, {"_id": 0})
     if not session or not session.get("messages"):
         raise HTTPException(
             status_code=404,
@@ -376,7 +495,7 @@ async def export_pdf(request: ExportRequest):
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f"attachment; filename=conversation_{request.session_id[:8]}.pdf"
+            "Content-Disposition": f"attachment; filename=conversation_{body.session_id[:8]}.pdf"
         },
     )
 
