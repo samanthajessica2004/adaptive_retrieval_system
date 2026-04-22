@@ -60,17 +60,18 @@ async def keyword_search(request: Request, body: SearchRequest):
         snippets = _build_snippets(c["text"], pattern)
         if not snippets:
             continue
+        chunk_match_count = len(pattern.findall(c["text"]))
         doc_entry = by_doc.setdefault(
             c["doc_id"],
             {"doc_id": c["doc_id"], "doc_name": c["doc_name"], "match_count": 0, "hits": []},
         )
-        doc_entry["match_count"] += len(pattern.findall(c["text"]))
+        doc_entry["match_count"] += chunk_match_count
         doc_entry["hits"].append({
             "chunk_index": c.get("chunk_index", 0),
             "snippets": snippets,
         })
-        total_matches += len(snippets)
-        if total_matches >= body.max_results:
+        total_matches += chunk_match_count
+        if len(by_doc) > 0 and sum(d["match_count"] for d in by_doc.values()) >= body.max_results * 10:
             break
 
     # Sort docs by match count, hits by chunk index

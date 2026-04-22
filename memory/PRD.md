@@ -33,6 +33,19 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 
 ## What's Been Implemented (2026-02)
 
+### Backend Refactor (2026-02-22)
+- `server.py` reduced from 585 → 33 lines (just app bootstrap + CORS + shutdown)
+- New modules: `deps.py` (singletons), `models.py` (pydantic), `routes/__init__.py` (aggregator)
+- Split into `routes/{documents,chat,compare,visualize,export,search}.py`
+- Shared retrieval helpers `_retrieve_top_chunks` + `_persist_session` in `routes/chat.py`
+- Tests live at `/app/backend/tests/test_rag_api.py`
+
+### New Features (2026-02-22)
+- **POST /api/search** — Case-insensitive keyword search across chunks with Mongo `$regex` prefilter, returns per-doc groups with `match_count` and contextual snippets (`before`, `match`, `after` segments). Optional `doc_ids` filter, 40/min rate limit.
+- **POST /api/compare (URL extension)** — `CompareRequest` now accepts optional `url` field. Live-fetches URL via trafilatura (not persisted), chunks + embeds in-memory, compares alongside selected docs. Returns entry keyed `__url__{domain}` with `is_external: true` + `source_url`.
+- **SearchTab** (new 4th tab) — Pill-shaped search bar, doc filter chips, highlighted `<mark>` snippets with yellow-underline style, per-doc cards with match count pill.
+- **CompareTab inline URL chip** — Purple dashed "+ Compare vs URL" chip expands into a URL input with remove button; submits alongside doc comparison. URL result pane shows "EXTERNAL" pill and clickable source URL.
+
 ### UI Overhaul — Soft Glassmorphism (2026-02-22)
 - Mesh gradient canvas with ambient blobs (indigo, cyan, violet, rose) + noise overlay
 - Frosted glass panels for Sidebar / Tab bar / Tab content with `backdrop-filter: blur(24px) saturate(180%)`
@@ -74,7 +87,7 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 - Search history / saved queries
 
 ## Next Tasks
-1. **P1 — Inline "Compare vs. URL" shortcut** inside the Compare tab (let users paste a URL and compare against an uploaded doc without going through sidebar ingestion first)
-2. **P2 — Search within documents**: keyword search across the doc library with highlighted snippets
-3. **P2 — Refactor backend**: split `server.py` into `/app/backend/routes/` modules (chat, documents, compare, visualize)
-4. **P2 — Bulk upload**: drag multiple files at once
+1. **P2 — Bulk upload**: drag multiple files at once into the upload zone
+2. **P3 — Shareable chat links**: generate read-only session URLs for team sharing
+3. **P3 — Named entity highlighting** in retrieved chunks
+4. **P3 — Saved search / recent queries** history panel
