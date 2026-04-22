@@ -211,11 +211,8 @@ const DocumentMapTab = ({ documents }) => {
         )}
 
         {!isLoading && points.length > 0 && (
-          <ResponsiveContainer
-            width="100%"
-            height="100%"
-            data-testid="umap-scatter-chart"
-          >
+          <div style={{ width: "100%", height: "100%" }} data-testid="umap-scatter-chart">
+          <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
               <CartesianGrid
                 strokeDasharray="4 4"
@@ -256,6 +253,7 @@ const DocumentMapTab = ({ documents }) => {
               ))}
             </ScatterChart>
           </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>
