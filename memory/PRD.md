@@ -41,6 +41,7 @@ Build a full-stack Adaptive Retrieval RAG (Retrieval-Augmented Generation) Syste
 - Tests live at `/app/backend/tests/test_rag_api.py`
 
 ### New Features (2026-02-22)
+- **Recent Queries** — persistent history (localStorage keys `rag_recent_chat`, `rag_recent_search`, last 8 each) shown as clickable pill chips above the input. Each chip has a small `×` to remove, plus a "Clear" button. Deduplicates case-insensitively. Shared component: `RecentQueries.jsx` + `useRecentQueries(key)` hook.
 - **POST /api/search** — Case-insensitive keyword search across chunks with Mongo `$regex` prefilter, returns per-doc groups with `match_count` and contextual snippets (`before`, `match`, `after` segments). Optional `doc_ids` filter, 40/min rate limit.
 - **POST /api/compare (URL extension)** — `CompareRequest` now accepts optional `url` field. Live-fetches URL via trafilatura (not persisted), chunks + embeds in-memory, compares alongside selected docs. Returns entry keyed `__url__{domain}` with `is_external: true` + `source_url`.
 - **SearchTab** (new 4th tab) — Pill-shaped search bar, doc filter chips, highlighted `<mark>` snippets with yellow-underline style, per-doc cards with match count pill.

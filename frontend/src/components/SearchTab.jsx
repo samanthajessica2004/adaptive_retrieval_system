@@ -1,6 +1,8 @@
 import { useState } from "react";
 import axios from "axios";
 import { Search, Loader2, FileText } from "lucide-react";
+import RecentQueries from "./RecentQueries";
+import { useRecentQueries } from "../hooks/useRecentQueries";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -28,16 +30,19 @@ const SearchTab = ({ documents }) => {
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const recent = useRecentQueries("rag_recent_search");
 
   const handleSearch = async (e) => {
     e?.preventDefault();
     if (query.trim().length < 2 || isLoading) return;
+    const q = query.trim();
+    recent.push(q);
     setIsLoading(true);
     setError("");
     setResults(null);
     try {
       const res = await axios.post(`${API}/search`, {
-        query: query.trim(),
+        query: q,
         doc_ids: selectedDocs,
       });
       setResults(res.data);
@@ -141,6 +146,19 @@ const SearchTab = ({ documents }) => {
           </button>
         </form>
       </div>
+
+      {/* Recent queries */}
+      {recent.items.length > 0 && (
+        <div className="search-recent-wrap">
+          <RecentQueries
+            items={recent.items}
+            onPick={(q) => setQuery(q)}
+            onRemove={recent.remove}
+            onClear={recent.clear}
+            testIdPrefix="search-recent"
+          />
+        </div>
+      )}
 
       {/* Doc filter chips */}
       {documents.length > 0 && (

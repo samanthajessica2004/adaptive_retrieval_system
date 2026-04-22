@@ -8,6 +8,8 @@ import {
   Zap,
   Sparkles,
 } from "lucide-react";
+import RecentQueries from "./RecentQueries";
+import { useRecentQueries } from "../hooks/useRecentQueries";
 
 const MODES = [
   {
@@ -220,6 +222,7 @@ const ChatTab = ({
   const [mode, setMode] = useState("hybrid");
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
+  const recent = useRecentQueries("rag_recent_chat");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -228,9 +231,16 @@ const ChatTab = ({
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!query.trim() || isLoading) return;
-    onSend(query.trim(), mode);
+    const q = query.trim();
+    recent.push(q);
+    onSend(q, mode);
     setQuery("");
     if (textareaRef.current) textareaRef.current.style.height = "auto";
+  };
+
+  const handlePickRecent = (q) => {
+    setQuery(q);
+    textareaRef.current?.focus();
   };
 
   const handleKeyDown = (e) => {
@@ -347,6 +357,13 @@ const ChatTab = ({
 
       {/* Input Area */}
       <div className="input-area">
+        <RecentQueries
+          items={recent.items}
+          onPick={handlePickRecent}
+          onRemove={recent.remove}
+          onClear={recent.clear}
+          testIdPrefix="chat-recent"
+        />
         <form
           onSubmit={handleSubmit}
           className="input-form"
