@@ -303,6 +303,7 @@ function App() {
         onDeleteDoc={handleDeleteDoc}
         onUpload={handleUpload}
         uploading={uploading}
+        onRefreshDocs={fetchDocuments}
       />
 
       <main className="main-content">

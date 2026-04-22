@@ -34,3 +34,7 @@ scikit-learn==1.8.0
 sentence-transformers==5.4.1
 umap-learn==0.5.12
 slowapi==0.1.9
+beautifulsoup4==4.14.3
+requests==2.33.1
+requests-oauthlib==2.0.0
+trafilatura==2.0.0
