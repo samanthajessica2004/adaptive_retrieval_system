@@ -1,6 +1,6 @@
 import { useState } from "react";
 import axios from "axios";
-import { Loader2, GitCompare, FileText } from "lucide-react";
+import { Loader2, GitCompare, FileText, Globe, X } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
@@ -18,8 +18,11 @@ const DOC_COLORS = [
 const CompareTab = ({ documents }) => {
   const [query, setQuery] = useState("");
   const [selectedDocs, setSelectedDocs] = useState([]);
+  const [compareUrl, setCompareUrl] = useState("");
+  const [showUrlInput, setShowUrlInput] = useState(false);
   const [results, setResults] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const toggleDoc = (docId) => {
     setSelectedDocs((prev) =>
@@ -27,18 +30,32 @@ const CompareTab = ({ documents }) => {
     );
   };
 
+  const hasUrl = showUrlInput && compareUrl.trim().length > 0;
+  const canSubmit =
+    query.trim().length > 0 &&
+    !isLoading &&
+    (selectedDocs.length > 0 || hasUrl);
+
   const handleCompare = async (e) => {
     e.preventDefault();
-    if (!query.trim() || selectedDocs.length < 1) return;
+    if (!canSubmit) return;
     setIsLoading(true);
     setResults(null);
+    setError("");
     try {
-      const res = await axios.post(`${API}/compare`, {
+      const payload = {
         query: query.trim(),
         doc_ids: selectedDocs,
-      });
+      };
+      if (hasUrl) payload.url = compareUrl.trim();
+      const res = await axios.post(`${API}/compare`, payload);
       setResults(res.data.results);
     } catch (e) {
+      const msg =
+        e.response?.data?.detail ||
+        e.message ||
+        "Comparison failed. Please try again.";
+      setError(msg);
       console.error("Compare failed", e);
     } finally {
       setIsLoading(false);
@@ -46,6 +63,7 @@ const CompareTab = ({ documents }) => {
   };
 
   const getDocColor = (docId) => {
+    if (docId.startsWith("__url__")) return "#A855F7";
     const idx = documents.findIndex((d) => d.id === docId);
     return DOC_COLORS[idx % DOC_COLORS.length];
   };
@@ -105,6 +123,92 @@ const CompareTab = ({ documents }) => {
                 );
               })
             )}
+
+            {/* Compare vs URL chip / input */}
+            {!showUrlInput ? (
+              <button
+                type="button"
+                onClick={() => setShowUrlInput(true)}
+                data-testid="compare-add-url-btn"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 12px",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  borderRadius: 999,
+                  border: "1.5px dashed rgba(168, 85, 247, 0.4)",
+                  background: "rgba(168, 85, 247, 0.08)",
+                  color: "#A855F7",
+                  cursor: "pointer",
+                  transition: "all 0.2s ease",
+                }}
+                title="Compare against a live URL (not persisted)"
+              >
+                <Globe size={12} />
+                + Compare vs URL
+              </button>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "3px 4px 3px 10px",
+                  borderRadius: 999,
+                  border: "1.5px solid rgba(168, 85, 247, 0.5)",
+                  background: "rgba(168, 85, 247, 0.08)",
+                  backdropFilter: "blur(10px)",
+                }}
+                data-testid="compare-url-pill"
+              >
+                <Globe size={12} style={{ color: "#A855F7", flexShrink: 0 }} />
+                <input
+                  type="url"
+                  value={compareUrl}
+                  onChange={(e) => setCompareUrl(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleCompare(e)}
+                  placeholder="https://example.com/article"
+                  data-testid="compare-url-input"
+                  autoFocus
+                  style={{
+                    width: 260,
+                    padding: "4px 2px",
+                    fontSize: 12,
+                    border: "none",
+                    outline: "none",
+                    background: "transparent",
+                    fontFamily: "'IBM Plex Sans', sans-serif",
+                    color: "#2D3250",
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUrlInput(false);
+                    setCompareUrl("");
+                  }}
+                  data-testid="compare-url-remove"
+                  title="Remove URL"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    border: "none",
+                    background: "rgba(168, 85, 247, 0.15)",
+                    color: "#A855F7",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -145,7 +249,7 @@ const CompareTab = ({ documents }) => {
           </div>
           <button
             onClick={handleCompare}
-            disabled={!query.trim() || selectedDocs.length < 1 || isLoading}
+            disabled={!canSubmit}
             data-testid="compare-submit-btn"
             style={{
               display: "flex",
@@ -155,19 +259,16 @@ const CompareTab = ({ documents }) => {
               fontSize: 13,
               fontWeight: 600,
               color: "#FFFFFF",
-              background:
-                !query.trim() || selectedDocs.length < 1
-                  ? "#C4C8DB"
-                  : "linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)",
+              background: !canSubmit
+                ? "#C4C8DB"
+                : "linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%)",
               border: "none",
               borderRadius: 10,
-              cursor:
-                !query.trim() || selectedDocs.length < 1 ? "not-allowed" : "pointer",
+              cursor: !canSubmit ? "not-allowed" : "pointer",
               transition: "transform 0.15s ease, box-shadow 0.2s ease",
-              boxShadow:
-                !query.trim() || selectedDocs.length < 1
-                  ? "none"
-                  : "0 6px 18px rgba(79, 70, 229, 0.3)",
+              boxShadow: !canSubmit
+                ? "none"
+                : "0 6px 18px rgba(79, 70, 229, 0.3)",
             }}
           >
             {isLoading ? (
@@ -182,7 +283,25 @@ const CompareTab = ({ documents }) => {
 
       {/* Results */}
       <div className="compare-results">
-        {!results && !isLoading && (
+        {error && (
+          <div
+            data-testid="compare-error"
+            style={{
+              padding: "12px 16px",
+              marginBottom: 16,
+              background: "rgba(244, 63, 94, 0.08)",
+              border: "1px solid rgba(244, 63, 94, 0.25)",
+              borderLeft: "3px solid #F43F5E",
+              borderRadius: 10,
+              color: "#881337",
+              fontSize: 13,
+            }}
+          >
+            {error}
+          </div>
+        )}
+
+        {!results && !isLoading && !error && (
           <div className="empty-state" data-testid="compare-empty-state">
             <GitCompare size={40} style={{ color: "#C4C8DB" }} />
             <div style={{ fontWeight: 700, fontSize: 17, color: "#2D3250", fontFamily: "'Cabinet Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
@@ -242,11 +361,30 @@ const CompareTab = ({ documents }) => {
                         flexShrink: 0,
                       }}
                     />
+                    {result.is_external && (
+                      <Globe size={12} style={{ color: "#A855F7" }} />
+                    )}
                     <span style={{ fontSize: 13 }}>
                       {result.doc_name.length > 30
                         ? result.doc_name.slice(0, 30) + "…"
                         : result.doc_name}
                     </span>
+                    {result.is_external && (
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 600,
+                          letterSpacing: "0.1em",
+                          color: "#A855F7",
+                          background: "rgba(168, 85, 247, 0.12)",
+                          padding: "2px 7px",
+                          borderRadius: 999,
+                          marginLeft: "auto",
+                        }}
+                      >
+                        EXTERNAL
+                      </span>
+                    )}
                   </div>
                   <p
                     className="compare-answer"
@@ -260,6 +398,28 @@ const CompareTab = ({ documents }) => {
                       {chunk.length > 200 ? "..." : ""}
                     </div>
                   ))}
+                  {result.is_external && result.source_url && (
+                    <a
+                      href={result.source_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 4,
+                        marginTop: 10,
+                        fontSize: 11,
+                        color: "#A855F7",
+                        textDecoration: "none",
+                        fontWeight: 500,
+                      }}
+                    >
+                      <Globe size={10} />
+                      {result.source_url.length > 50
+                        ? result.source_url.slice(0, 50) + "…"
+                        : result.source_url}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

@@ -118,6 +118,151 @@ class TestCompare:
         data = res.json()
         assert "results" in data
 
+    def test_compare_url_only(self):
+        """Compare against a live URL with no docs"""
+        res = requests.post(
+            f"{BASE_URL}/api/compare",
+            json={"query": "What is this page about?", "doc_ids": [], "url": "https://httpbin.org/html"},
+            timeout=120,
+        )
+        assert res.status_code == 200, f"URL compare failed: {res.text}"
+        data = res.json()
+        assert "results" in data
+        # Must have at least one __url__ key
+        url_keys = [k for k in data["results"].keys() if k.startswith("__url__")]
+        assert len(url_keys) >= 1
+        url_entry = data["results"][url_keys[0]]
+        assert url_entry.get("is_external") is True
+        assert "source_url" in url_entry
+        assert "doc_name" in url_entry
+        assert "answer" in url_entry
+        assert "source_chunks" in url_entry
+
+    def test_compare_url_plus_docs(self):
+        """Compare with URL + uploaded doc together"""
+        if not uploaded_doc_id:
+            pytest.skip("No uploaded doc available")
+        res = requests.post(
+            f"{BASE_URL}/api/compare",
+            json={
+                "query": "What is the topic?",
+                "doc_ids": [uploaded_doc_id],
+                "url": "https://httpbin.org/html",
+            },
+            timeout=120,
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert "results" in data
+        # Should have both: doc_id key and __url__ key
+        keys = list(data["results"].keys())
+        assert any(k.startswith("__url__") for k in keys)
+        assert uploaded_doc_id in keys
+
+    def test_compare_invalid_url(self):
+        """Invalid URL should return 422 or 400"""
+        res = requests.post(
+            f"{BASE_URL}/api/compare",
+            json={"query": "Test", "doc_ids": [], "url": "not-a-valid-url-at-all"},
+            timeout=60,
+        )
+        assert res.status_code in (400, 422), f"Expected 400/422, got {res.status_code}: {res.text}"
+
+    def test_compare_no_docs_no_url(self):
+        """Empty doc_ids and no url should return 400"""
+        res = requests.post(
+            f"{BASE_URL}/api/compare",
+            json={"query": "Test", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 400
+
+
+class TestSearch:
+    """Keyword search endpoint"""
+
+    def test_search_empty_query(self):
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 400
+
+    def test_search_too_short(self):
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "a", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 400
+
+    def test_search_valid_query(self):
+        """Search for a known keyword from the uploaded test doc."""
+        if not uploaded_doc_id:
+            pytest.skip("No uploaded doc available")
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "intelligence", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 200, f"Search failed: {res.text}"
+        data = res.json()
+        assert "total_matches" in data
+        assert "doc_count" in data
+        assert "results" in data
+        assert isinstance(data["results"], list)
+        # Should match at least the uploaded test_ai.txt
+        assert data["total_matches"] >= 1
+        assert data["doc_count"] >= 1
+        first = data["results"][0]
+        assert "doc_name" in first
+        assert "match_count" in first
+        assert "hits" in first
+        assert len(first["hits"]) >= 1
+        snippets = first["hits"][0]["snippets"]
+        assert len(snippets) >= 1
+        snip = snippets[0]
+        assert "before" in snip and "match" in snip and "after" in snip
+        # Match should case-insensitively contain the query
+        assert "intelligence" in snip["match"].lower()
+
+    def test_search_case_insensitive(self):
+        if not uploaded_doc_id:
+            pytest.skip("No uploaded doc available")
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "INTELLIGENCE", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 200
+        assert res.json()["total_matches"] >= 1
+
+    def test_search_filter_by_doc_ids(self):
+        if not uploaded_doc_id:
+            pytest.skip("No uploaded doc available")
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "machine", "doc_ids": [uploaded_doc_id]},
+            timeout=30,
+        )
+        assert res.status_code == 200
+        data = res.json()
+        # All returned docs must be in the filter
+        for d in data["results"]:
+            assert d["doc_id"] == uploaded_doc_id
+
+    def test_search_no_matches(self):
+        res = requests.post(
+            f"{BASE_URL}/api/search",
+            json={"query": "zzzqxqxqxnotfound", "doc_ids": []},
+            timeout=30,
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["total_matches"] == 0
+        assert data["doc_count"] == 0
+
 
 class TestVisualize:
     """Visualize endpoint"""

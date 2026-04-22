@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import ChatTab from "./components/ChatTab";
 import CompareTab from "./components/CompareTab";
 import DocumentMapTab from "./components/DocumentMapTab";
+import SearchTab from "./components/SearchTab";
 import "./App.css";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
@@ -289,6 +290,7 @@ function App() {
   const TABS = [
     { key: "chat", label: "Chat" },
     { key: "compare", label: "Compare Docs" },
+    { key: "search", label: "Search" },
     { key: "map", label: "Document Map" },
   ];
 
@@ -371,6 +373,15 @@ function App() {
             }}
           >
             <CompareTab documents={documents} />
+          </div>
+          <div
+            style={{
+              display: activeTab === "search" ? "flex" : "none",
+              flexDirection: "column",
+              height: "100%",
+            }}
+          >
+            <SearchTab documents={documents} />
           </div>
           <div
             style={{
