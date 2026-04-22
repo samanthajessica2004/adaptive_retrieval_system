@@ -162,7 +162,9 @@ class RagEngine:
         if not scores:
             return 0.0
         top = [s for _, s in scores[:3]]
-        return float(np.mean(top))
+        avg = float(np.mean(top))
+        # BM25 scores can exceed 1 — normalize; vector/hybrid are already 0-1
+        return float(min(1.0, max(0.05, avg)))
 
     def get_umap_coords(self, embeddings: list) -> list:
         n = len(embeddings)

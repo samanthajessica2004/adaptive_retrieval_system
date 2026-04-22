@@ -236,8 +236,8 @@ async def chat(request: ChatRequest):
     )
     has_contradiction, contradiction_desc = contradiction_result
 
-    # Step 7: Confidence
-    confidence = await asyncio.to_thread(rag_engine.compute_confidence, top_results)
+    # Step 7: Confidence (use initial retrieval scores — more stable than CrossEncoder sigmoid)
+    confidence = await asyncio.to_thread(rag_engine.compute_confidence, results[:5])
 
     # Step 8: CRAG self-evaluation
     is_grounded, crag_note = await groq_service.self_evaluate(
